@@ -1,0 +1,161 @@
+#!/usr/bin/perl
+
+use strict;
+use DBI;
+use DBD::Oracle qw(:ora_session_modes);
+
+use Expect;
+
+my $db_name           = $ARGV[0];
+my $sql_list_filename = $ARGV[1];
+my $log_filename      = $ARGV[2];
+
+my $sec   = "";
+my $min   = "";
+my $hour  = "";
+my $mday  = "";
+my $mon   = "";
+my $year  = " ";
+my $wday  = " ";
+my $yday  = " ";
+my $isdst = " ";
+
+( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) = localtime();
+$log_filename = sprintf(
+    "%s-%s-%02d-%02d-%02d:%02d:%02d",
+    $log_filename, $year + 1900,
+    $mon + 1, $mday, $hour, $min, $sec
+);
+open( my $fh, '>>', $log_filename );
+
+#Get list sql files from file
+open my $in, "<", $sql_list_filename;
+my @sql_file_list = <$in>;
+close $in;
+
+#print " \nsql_path=$sql_path" ;
+#opendir (DIR,$sql_path) or die $!;
+#$my @sql_file_list =();
+#$while (my $file = readdir(DIR)) {
+#   if ($file =~  /\.sql$/ ) {
+#       #print " \n$file" ;
+#       push (@sql_file_list, $file);
+#   }
+#}
+my $env = new Expect;
+$env->log_file($log_filename);
+print " \nSetup environment...";
+$env->spawn(". oraenv");
+
+$env->expect( 5, "ORACLE_HOME" );
+my $myMatchString = $env->match();
+
+#print " \nmyMatchString = $myMatchString" ;
+if ( $myMatchString eq "ORACLE_HOME" ) {
+    print " \nORACLE_HOME found!";
+    exit(1);
+}
+print " \nExpecting ORACLE_SID";
+$env->expect( 20, "ORACLE_SID" );
+my $myExpect = $env->match();
+print "\n--matched= $myExpect";
+
+if ( $myExpect != "ORACLE_SID" ) {
+    print " \nCannot set environment for $db_name";
+    exit(1);
+}
+print " \nInput db name: $db_name";
+$env->send("$db_name\r");
+sleep 2;
+
+$env->expect( 20, "The Oracle base for" );
+$myExpect = $env->match();
+if ( $myExpect != "The Oracle base for" ) {
+    print " \nSomething wrong for $db_name";
+    exit(1);
+}
+
+my $dbh;
+eval {
+    $ENV{ORACLE_SID} = $;
+    $dbh =
+      DBI->connect( "dbi:Oracle:", "", "", { ora_session_mode => ORA_SYSDBA } );
+
+};
+if ($@) {
+    print $@;
+    print $fh $DBI::lasth->errstr;
+    close $fh;
+    die("Couldn't connect $DBI::lasth->errstr");
+}
+
+#run SQL from file
+
+my $is_error = 0;
+foreach my $sql_file (@sql_file_list) {
+
+    eval {
+        my $sth = $dbh->prepare($sql_file);
+        $sth->execute();
+        while ( my @row = $sth->fetchrow_array ) {
+
+            foreach my $elem (@row) {
+                print $elem;
+		print $fh $elem ;	
+            }
+            print "\n";
+	    print $fh "\n";
+        }
+    };
+    if ($@) {
+        print $DBI::lasth->errstr;
+        print $fh $DBI::lasth->errstr;
+    }
+}
+close $fh;
+$dbh->disconnect;
+
+# clear buffer
+
+=cut
+    $session->expect(20, -re, ".");
+
+    $session->clear_accum();
+
+    $session->send ("$sql_file\r\r");
+    sleep 5;
+    #$session->expect(100, -re, "SQL>");
+
+    $session->expect(5,-re,"ERROR");
+    $myMatchString = $session->match();
+
+    #print " \nmyMatchString= $myMatchString" ;
+
+    if($myMatchString  eq  "ERROR") {
+       $is_error =1;
+       last;
+    }
+=cut
+
+# clear buffer
+
+=cut
+$session->expect(20, -re, ".");
+
+$session->clear_accum();
+
+
+if ($is_error ==1 ) {
+   $session->send ( " --Running SQL script failed!!!\r") ;
+} else {
+   $session->send (" --Running SQL script successed!\r" );
+}
+
+sleep 1;
+$session->expect(20, -re, "SQL");
+
+$session->send ("EXIT;\r");
+
+$session->send ("EOF\r");
+
+=cut
